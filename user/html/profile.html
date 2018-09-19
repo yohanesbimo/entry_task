@@ -1,0 +1,61 @@
+<html>
+    <head>
+        <title>Profile</title>
+    </head>
+    <body>
+        <h1>Your Profile</h1>
+        <div>
+            <form onsubmit="return update_profile()">
+                <div>
+                    <label>Username</label>
+                    <input type="text" name="username" id="username" value="{{.Username}}" required readonly>
+                </div>
+                <div>
+                    <label>Name</label>
+                    <input type="text" name="name" id="name" value="{{.Name}}" required readonly>
+                </div>
+                <div>
+                    <label>Nickname</label>
+                    <input type="text" name="nickname" id="nickname" value="{{.Nickname}}" required>
+                </div>
+                <div>
+                    <label>Photo</label>
+                    {{ if .Photo }}
+                    <img src="http://localhost:8080/photo/{{.Photo}}" style="max-width: 200px" />
+                    {{end}}
+                    <input type="file" name="photo" id="photo" accept="image/x-png,image/gif,image/jpeg">
+                </div>
+                <div>
+                    <button type="submit">Update</button>
+                    <button type="button" onclick="logout();">Logout</button>
+                </div>
+            </form>
+        </div>
+    </body>
+    <script>
+        function update_profile(){
+            var http = new XMLHttpRequest();
+            var url = "http://localhost:8080/action-update-profile";
+            var form = document.querySelector("form");
+            http.open('POST', url, true);
+            http.onreadystatechange = function() {
+                if(http.readyState == 4 && http.status == 200) {
+                    var result = JSON.parse(http.responseText);
+                    if(result.status == "NOK"){
+                        alert(result.message);
+                        return
+                    }
+
+                    window.location = "http://localhost:8080/profile"
+                }
+            }
+            http.send(new FormData(form));
+
+            return false;
+        }
+
+        function logout(){
+            window.location = "http://localhost:8080/logout";
+        }
+    </script>
+</html>

@@ -1,0 +1,50 @@
+<html>
+    <head>
+        <title>Login</title>
+    </head>
+    <body>
+        <h1>Login to Your Account</h1>
+        <div>
+            <form onsubmit="return login()">
+                <div>
+                    <label>Username</label>
+                    <input type="text" name="username" id="username" required>
+                </div>
+                <div>
+                    <label>Password</label>
+                    <input type="password" name="password" id="password" required>
+                </div>
+                <div>
+                    <button type="submit">Login</button>
+                </div>
+            </form>
+        </div>
+    </body>
+    <script>
+        function login(){
+            var http = new XMLHttpRequest();
+            var url = "http://localhost:8080/action-login";
+            var params = "";
+            var username = document.getElementById("username").value;
+            var password = document.getElementById("password").value;
+            if(username != "" && password != ""){
+                params = "username=" + username + "&password=" + password;
+            }
+            http.open('POST', url, true);
+            http.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+            http.onreadystatechange = function() {
+                if(http.readyState == 4 && http.status == 200) {
+                    var result = JSON.parse(http.responseText);
+                    if(result.status == "OK"){
+                        location.reload("http://localhost:8080/profile");
+                    }else{
+                        alert(result.message);
+                    }
+                }
+            }
+            http.send(params);
+
+            return false;
+        }
+    </script>
+</html>
