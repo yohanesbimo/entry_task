@@ -15,7 +15,22 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var user UserProfile
+const WORKER_NUM = 3
+
+var (
+	jobs   chan UserProfile
+	result chan ResponseMessage
+	user   UserProfile
+)
+
+func InitWorker() {
+	jobs = make(chan UserProfile, 100)
+	result = make(chan ResponseMessage, 100)
+
+	for i := 0; i < WORKER_NUM; i++ {
+		go tryingToLogin()
+	}
+}
 
 func renderHTML(w http.ResponseWriter, tmpl *template.Template, data interface{}) {
 	err := tmpl.Execute(w, data)
@@ -77,42 +92,33 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ActionLogin(w http.ResponseWriter, r *http.Request) {
-	user := isLogin(w, r)
-	if user.ID != 0 {
-		http.Redirect(w, r, "/profile", http.StatusFound)
-	} else {
-		err := r.ParseForm()
-		if err != nil {
-			return
-		}
+func tryingToLogin() {
+	for j := range jobs {
+		log.Println("Jobs Started", j.Username)
 
-		uname := r.Form.Get("username")
-		pwd := r.Form.Get("password")
-
-		user, err := getUserByUsername(uname)
+		user, err := getUserByUsername(j.Username)
 		if err != nil {
 			log.Println("Failed retreive user data:", err)
 		}
 
-		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pwd))
-		response := ResponseMessage{}
+		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(j.Password))
+		resp := ResponseMessage{}
 
 		if err != nil {
-			response.Status = "NOK"
-			response.Message = "Wrong password, please try again"
+			resp.Status = "NOK"
+			resp.Message = "Wrong password, please try again"
 		} else {
 			now := time.Now().Format(time.RFC850)
 			sess, err := bcrypt.GenerateFromPassword([]byte(strconv.FormatInt(user.ID, 10)+now), bcrypt.DefaultCost)
 			if err != nil {
 				log.Println("Cannot create session:", err)
-				response.Status = "NOK"
-				response.Message = "System error. Please try again"
+				resp.Status = "NOK"
+				resp.Message = "System error. Please try again"
 			} else {
-				expires := 1 * time.Hour
+				//expires := 1 * time.Hour
 				session := setSessionRedis(strconv.FormatInt(user.ID, 10), string(sess[:]), 1*60*60)
 				if session {
-					cookie := http.Cookie{
+					/*cookie := http.Cookie{
 						Name:    "session",
 						Value:   string(sess[:]),
 						Domain:  "localhost",
@@ -134,19 +140,50 @@ func ActionLogin(w http.ResponseWriter, r *http.Request) {
 						Domain:  "localhost",
 						Expires: time.Now().Add(expires),
 					}
-					http.SetCookie(w, &cookie)
+					http.SetCookie(w, &cookie)*/
 
-					response.Status = "OK"
-					response.Message = "Login Successful"
+					resp.Status = "OK"
+					resp.Message = "Login Successful"
 				} else {
-					response.Status = "NOK"
-					response.Message = "System error. Please try again"
+					resp.Status = "NOK"
+					resp.Message = "System error. Please try again"
 				}
 			}
 		}
 
-		json, _ := json.Marshal(response)
-		w.Write(json)
+		result <- resp
+
+		log.Println("Jobs Finished")
+	}
+}
+
+func ActionLogin(w http.ResponseWriter, r *http.Request) {
+	user := isLogin(w, r)
+	if user.ID != 0 {
+		http.Redirect(w, r, "/profile", http.StatusFound)
+	} else {
+		err := r.ParseForm()
+		if err != nil {
+			return
+		}
+
+		uname := r.Form.Get("username")
+		pwd := r.Form.Get("password")
+
+		jobs <- UserProfile{
+			Username: uname,
+			Password: pwd,
+		}
+
+		/*for r := range result {
+			r, _ := json.Marshal(r.Status)
+			w.Write(r)
+		}*/
+
+		r := <-result
+		log.Println("status:", r.Status)
+		res, err := json.Marshal(r)
+		w.Write(res)
 	}
 }
 

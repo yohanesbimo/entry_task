@@ -9,6 +9,7 @@ import (
 
 func main() {
 	u.Init()
+	u.InitWorker()
 
 	r := mux.NewRouter()
 
