@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gomodule/redigo/redis"
@@ -19,7 +20,7 @@ const (
 )
 
 var (
-	redisDB redis.Conn
+	redisDB *redis.Pool
 
 	db  *sql.DB
 	err error
@@ -38,9 +39,16 @@ func Init() {
 }
 
 func dialRedis() {
-	redisDB, err = redis.Dial("tcp", REDISHOST)
-	if err != nil {
-		log.Fatal("Cannot connect redis:", err)
+	redisDB = &redis.Pool{
+		MaxIdle:     10,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", "127.0.0.1:6379")
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
 	}
 }
 
@@ -142,13 +150,14 @@ func registerUser(username string, password string, name string) error {
 }
 
 func setSessionRedis(key string, value string, expires int) bool {
-	_, err := redisDB.Do("SET", key, value)
+	c := redisDB.Get()
+	_, err := c.Do("SET", key, value)
 	if err != nil {
 		log.Fatal("Cannot set redis value:", err)
 		return false
 	}
 
-	_, err = redisDB.Do("EXPIRE", key, expires)
+	_, err = c.Do("EXPIRE", key, expires)
 	if err != nil {
 		log.Fatal("Cannot set redis expires:", err)
 		return false
@@ -158,7 +167,8 @@ func setSessionRedis(key string, value string, expires int) bool {
 }
 
 func getSessionFromRedis(userID string) (string, error) {
-	result, err := redis.Bytes(redisDB.Do("GET", userID))
+	c := redisDB.Get()
+	result, err := redis.Bytes(c.Do("GET", userID))
 	if err != nil {
 		log.Println("Cannot read from redis:", err)
 		return "", nil
@@ -168,7 +178,8 @@ func getSessionFromRedis(userID string) (string, error) {
 }
 
 func removeSessionFromRedis(userID string) (int64, error) {
-	result, err := redis.Int64(redisDB.Do("DEL", userID))
+	c := redisDB.Get()
+	result, err := redis.Int64(c.Do("DEL", userID))
 	if err != nil {
 		log.Println("Cannot remove session from redis:", err)
 		return 0, err

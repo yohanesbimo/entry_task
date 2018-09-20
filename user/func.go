@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -94,8 +95,6 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 func tryingToLogin() {
 	for j := range jobs {
-		log.Println("Jobs Started", j.Username)
-
 		user, err := getUserByUsername(j.Username)
 		if err != nil {
 			log.Println("Failed retreive user data:", err)
@@ -105,6 +104,7 @@ func tryingToLogin() {
 		resp := ResponseMessage{}
 
 		if err != nil {
+			log.Println("Hash not match", err)
 			resp.Status = "NOK"
 			resp.Message = "Wrong password, please try again"
 		} else {
@@ -152,8 +152,6 @@ func tryingToLogin() {
 		}
 
 		result <- resp
-
-		log.Println("Jobs Finished")
 	}
 }
 
@@ -167,21 +165,15 @@ func ActionLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		uname := r.Form.Get("username")
-		pwd := r.Form.Get("password")
+		uname := strings.TrimSpace(r.Form.Get("username"))
+		pwd := strings.TrimSpace(r.Form.Get("password"))
 
 		jobs <- UserProfile{
 			Username: uname,
 			Password: pwd,
 		}
 
-		/*for r := range result {
-			r, _ := json.Marshal(r.Status)
-			w.Write(r)
-		}*/
-
 		r := <-result
-		log.Println("status:", r.Status)
 		res, err := json.Marshal(r)
 		w.Write(res)
 	}
