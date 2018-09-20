@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const WORKER_NUM = 10
+const WORKER_NUM = 100
 
 var (
 	jobs   chan UserProfile
@@ -24,8 +24,8 @@ var (
 )
 
 func InitWorker() {
-	jobs = make(chan UserProfile, 100)
-	result = make(chan ResponseMessage, 100)
+	jobs = make(chan UserProfile, 500)
+	result = make(chan ResponseMessage, 500)
 
 	for i := 0; i < WORKER_NUM; i++ {
 		go tryingToLogin()
