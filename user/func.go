@@ -224,21 +224,20 @@ func ActionUpdateProfile(w http.ResponseWriter, r *http.Request) {
 			log.Println("Unable to get photo")
 		}
 
-		if err == nil {
+		if file != nil {
 			defer file.Close()
+			pwd, _ := os.Getwd()
+			filename := user.Username + "-" + handler.Filename
+			f, err := os.OpenFile(pwd+"/user/images/"+filename, os.O_WRONLY|os.O_CREATE, 0666)
+			if err != nil {
+				fmt.Println("File not found:", err)
+
+			}
+			defer f.Close()
+			io.Copy(f, file)
+
+			user.Photo = filename
 		}
-
-		pwd, _ := os.Getwd()
-		filename := user.Username + "-" + handler.Filename
-		f, err := os.OpenFile(pwd+"/user/images/"+filename, os.O_WRONLY|os.O_CREATE, 0666)
-		if err != nil {
-			fmt.Println("File not found:", err)
-
-		}
-		defer f.Close()
-		io.Copy(f, file)
-
-		user.Photo = filename
 
 		err = updateUser(user)
 		if err != nil {
