@@ -91,6 +91,7 @@ func getUserByUsername(username string) (user UserProfile, err error) {
 	}
 
 	defer res.Close()
+	defer stmtGetUserByUsername.Close()
 
 	if res.Next() {
 		if err := res.Scan(&user.ID, &user.Username, &user.Password); err != nil {
@@ -106,9 +107,11 @@ func getUserByID(userID int64) (user UserProfile) {
 	res, err := stmtGetUserByID.Query(userID)
 	if err != nil {
 		log.Println("Failed to check user ID:", err)
+		return user
 	}
 
 	defer res.Close()
+	defer stmtGetUserByID.Close()
 
 	for res.Next() {
 		if err := res.Scan(&user.ID, &user.Username, &user.Name, &user.Nickname, &user.Photo); err != nil {
@@ -124,6 +127,7 @@ func updateUser(user UserProfile) (err error) {
 	if err != nil {
 		log.Fatal("Failed update user on DB:", err)
 	}
+	defer stmtUpdateUser.Close()
 	return err
 }
 
@@ -132,7 +136,7 @@ func registerUser(username string, password string, name string) error {
 	if err != nil {
 		log.Fatal("Failed register user on DB:", err)
 	}
-
+	defer stmtRegister.Close()
 	return err
 }
 

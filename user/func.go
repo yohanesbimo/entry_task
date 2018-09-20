@@ -34,26 +34,31 @@ func hashPassword(password string) string {
 }
 
 func Register(w http.ResponseWriter, r *http.Request) {
-	form := r.URL.Query()
+	/*form := r.URL.Query()
 
 	uname := form.Get("username")
 	pwd := form.Get("password")
-	name := form.Get("name")
-
-	_, err := getUserByUsername(uname)
-	if err != nil {
-		log.Println("Username already taken")
-		return
-	} else {
-		hash := hashPassword(pwd)
-
-		err := registerUser(uname, hash, name)
+	name := form.Get("name")*/
+	for i := 1000; i < 10000; i++ {
+		uname := fmt.Sprintf("yohanesbimo%d", i)
+		pwd := "bimo123456"
+		name := fmt.Sprintf("Yohanes Bimo%d", i)
+		_, err := getUserByUsername(uname)
 		if err != nil {
-			log.Println("Failed register user:", err)
-		}
+			log.Println("Username already taken")
+			return
+		} else {
+			hash := hashPassword(pwd)
 
-		log.Println("Registration success")
+			err := registerUser(uname, hash, name)
+			if err != nil {
+				log.Println("Failed register user:", err)
+			}
+
+			//log.Println("Registration success")
+		}
 	}
+	log.Println("done")
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
