@@ -223,7 +223,10 @@ func ActionUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println("Unable to get photo")
 		}
-		defer file.Close()
+
+		if err == nil {
+			defer file.Close()
+		}
 
 		pwd, _ := os.Getwd()
 		filename := user.Username + "-" + handler.Filename
