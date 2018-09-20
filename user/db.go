@@ -58,7 +58,7 @@ func connect() {
 		log.Fatal("Failed to connect DB:", err)
 	}
 
-	db.SetMaxIdleConns(100)
+	//db.SetMaxIdleConns(100)
 	db.SetMaxOpenConns(1024)
 }
 
