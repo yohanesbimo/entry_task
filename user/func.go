@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const WORKER_NUM = 3
+const WORKER_NUM = 10
 
 var (
 	jobs   chan UserProfile
