@@ -161,7 +161,7 @@ func getSessionFromRedis(userID string) (string, error) {
 	result, err := redis.Bytes(redisDB.Do("GET", userID))
 	if err != nil {
 		log.Println("Cannot read from redis:", err)
-		return "", nil
+		return "", err
 	}
 
 	return string(result), nil

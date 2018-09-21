@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -96,6 +97,7 @@ func ActionLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pwd))
+
 		response := ResponseMessage{}
 
 		if err != nil {
@@ -150,7 +152,7 @@ func ActionLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func isLogin(w http.ResponseWriter, r *http.Request) UserProfile {
+func isLogin(w http.ResponseWriter, r *http.Request) (user UserProfile) {
 	session, sessionErr := r.Cookie("session")
 	userID, userIDErr := r.Cookie("ID")
 	lastLogin, lastLoginErr := r.Cookie("last-login")
@@ -159,35 +161,52 @@ func isLogin(w http.ResponseWriter, r *http.Request) UserProfile {
 		return UserProfile{}
 	}
 
-	userSession, err := getSessionFromRedis(userID.Value)
-	if err != nil {
-		log.Println("Cannot authenticate session from Redis:", err)
-		return UserProfile{}
-	}
+	authFromRedis := false
+	authPassword := false
 
-	err = bcrypt.CompareHashAndPassword([]byte(session.Value), []byte(userID.Value+lastLogin.Value))
-	if err != nil {
-		log.Println("Cannot authenticate", err)
-		return UserProfile{}
-	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		userSession, err := getSessionFromRedis(userID.Value)
+		if err != nil {
+			log.Println("Cannot authenticate session from Redis:", err)
+			return
+		}
 
-	if session.Value != userSession {
-		log.Println("Session not valid")
-		return UserProfile{}
-	}
+		if session.Value != userSession {
+			log.Println("Session not valid")
+			return
+		}
+
+		authFromRedis = true
+	}()
+
+	go func() {
+		defer wg.Done()
+		err = bcrypt.CompareHashAndPassword([]byte(session.Value), []byte(userID.Value+lastLogin.Value))
+		if err != nil {
+			log.Println("Cannot authenticate", err)
+			return
+		}
+
+		authPassword = true
+	}()
 
 	expires := 1 * time.Hour
 	session.Expires = time.Now().Add(expires)
 	userID.Expires = time.Now().Add(expires)
 	lastLogin.Expires = time.Now().Add(expires)
 
-	http.SetCookie(w, session)
-	http.SetCookie(w, userID)
-	http.SetCookie(w, lastLogin)
+	wg.Wait()
+	if authFromRedis && authPassword {
+		http.SetCookie(w, session)
+		http.SetCookie(w, userID)
+		http.SetCookie(w, lastLogin)
 
-	setSessionRedis(userID.Value, session.Value, 1*60*60)
+		setSessionRedis(userID.Value, session.Value, 1*60*60)
 
-	user.ID, _ = strconv.ParseInt(userID.Value, 10, 64)
+		user.ID, _ = strconv.ParseInt(userID.Value, 10, 64)
+	}
 	return user
 }
 
