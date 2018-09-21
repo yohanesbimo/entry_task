@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -95,53 +96,61 @@ func ActionLogin(w http.ResponseWriter, r *http.Request) {
 			log.Println("Failed retreive user data:", err)
 		}
 
-		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pwd))
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pwd))
+		}()
 		response := ResponseMessage{}
+		cookie := []http.Cookie{}
+		expires := 1 * time.Hour
+
+		now := time.Now().Format(time.RFC850)
+		wg.Wait()
+		sess, err := bcrypt.GenerateFromPassword([]byte(strconv.FormatInt(user.ID, 10)+now), bcrypt.DefaultCost)
+		if err != nil {
+			log.Println("Cannot create session:", err)
+			response.Status = "NOK"
+			response.Message = "System error. Please try again"
+		} else {
+			cookie = append(cookie,
+				http.Cookie{
+					Name:    "ID",
+					Value:   strconv.FormatInt(user.ID, 10),
+					Domain:  "localhost",
+					Expires: time.Now().Add(expires),
+				},
+				http.Cookie{
+					Name:    "last-login",
+					Value:   now,
+					Domain:  "localhost",
+					Expires: time.Now().Add(expires),
+				},
+			)
+
+			response.Status = "OK"
+			response.Message = "Login Successful"
+		}
 
 		if err != nil {
 			response.Status = "NOK"
 			response.Message = "Wrong password, please try again"
 		} else {
-			now := time.Now().Format(time.RFC850)
-			sess, err := bcrypt.GenerateFromPassword([]byte(strconv.FormatInt(user.ID, 10)+now), bcrypt.DefaultCost)
-			if err != nil {
-				log.Println("Cannot create session:", err)
-				response.Status = "NOK"
-				response.Message = "System error. Please try again"
-			} else {
-				expires := 1 * time.Hour
-				session := setSessionRedis(strconv.FormatInt(user.ID, 10), string(sess[:]), 1*60*60)
-				if session {
-					cookie := http.Cookie{
+			session := setSessionRedis(strconv.FormatInt(user.ID, 10), string(sess[:]), 1*60*60)
+			if session {
+				cookie = append(cookie,
+					http.Cookie{
 						Name:    "session",
 						Value:   string(sess[:]),
 						Domain:  "localhost",
 						Expires: time.Now().Add(expires),
-					}
-					http.SetCookie(w, &cookie)
+					},
+				)
+			}
 
-					cookie = http.Cookie{
-						Name:    "ID",
-						Value:   strconv.FormatInt(user.ID, 10),
-						Domain:  "localhost",
-						Expires: time.Now().Add(expires),
-					}
-					http.SetCookie(w, &cookie)
-
-					cookie = http.Cookie{
-						Name:    "last-login",
-						Value:   now,
-						Domain:  "localhost",
-						Expires: time.Now().Add(expires),
-					}
-					http.SetCookie(w, &cookie)
-
-					response.Status = "OK"
-					response.Message = "Login Successful"
-				} else {
-					response.Status = "NOK"
-					response.Message = "System error. Please try again"
-				}
+			for _, c := range cookie {
+				http.SetCookie(w, &c)
 			}
 		}
 

@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	redisDB redis.Conn
+	redisDB *redis.Pool
 
 	db  *sql.DB
 	err error
@@ -38,9 +38,20 @@ func Init() {
 }
 
 func dialRedis() {
-	redisDB, err = redis.Dial("tcp", REDISHOST)
+	/*redisDB, err = redis.Dial("tcp", REDISHOST)
 	if err != nil {
 		log.Fatal("Cannot connect redis:", err)
+	}*/
+	redisDB = &redis.Pool{
+		MaxIdle:   80,
+		MaxActive: 12000, // max number of connections
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", REDISHOST)
+			if err != nil {
+				panic(err.Error())
+			}
+			return c, err
+		},
 	}
 }
 
@@ -142,13 +153,13 @@ func registerUser(username string, password string, name string) error {
 }
 
 func setSessionRedis(key string, value string, expires int) bool {
-	_, err := redisDB.Do("SET", key, value)
+	_, err := redisDB.Get().Do("SET", key, value)
 	if err != nil {
 		log.Fatal("Cannot set redis value:", err)
 		return false
 	}
 
-	_, err = redisDB.Do("EXPIRE", key, expires)
+	_, err = redisDB.Get().Do("EXPIRE", key, expires)
 	if err != nil {
 		log.Fatal("Cannot set redis expires:", err)
 		return false
@@ -158,7 +169,7 @@ func setSessionRedis(key string, value string, expires int) bool {
 }
 
 func getSessionFromRedis(userID string) (string, error) {
-	result, err := redis.Bytes(redisDB.Do("GET", userID))
+	result, err := redis.Bytes(redisDB.Get().Do("GET", userID))
 	if err != nil {
 		log.Println("Cannot read from redis:", err)
 		return "", nil
@@ -168,7 +179,7 @@ func getSessionFromRedis(userID string) (string, error) {
 }
 
 func removeSessionFromRedis(userID string) (int64, error) {
-	result, err := redis.Int64(redisDB.Do("DEL", userID))
+	result, err := redis.Int64(redisDB.Get().Do("DEL", userID))
 	if err != nil {
 		log.Println("Cannot remove session from redis:", err)
 		return 0, err
